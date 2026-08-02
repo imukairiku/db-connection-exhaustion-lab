@@ -5,9 +5,13 @@
 #   - 本ファイルに記載のパスワード・接続情報は「演習専用」です。
 #     本番環境では絶対に使用しないでください。
 #   - max_connections=20 は障害再現のための意図的に小さい値です。
+#
+# 互換性:
+#   - Docker Compose v1 (docker-compose) と v2 (docker compose) の両方で動作
+#   - Killercoda環境の古いdocker-compose v1にも対応するため version 指定を使用
 # =============================================================================
 
-name: reliability-lab
+version: "3.8"
 
 services:
   db-server:

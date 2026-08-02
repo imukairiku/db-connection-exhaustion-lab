@@ -51,7 +51,7 @@ else
 fi
 
 compose() {
-  ( cd "${LAB_DIR}" && ${DOCKER_COMPOSE_CMD} "$@" )
+  ( cd "${LAB_DIR}" && ${DOCKER_COMPOSE_CMD} -p reliability-lab "$@" )
 }
 
 
