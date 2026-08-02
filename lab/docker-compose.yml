@@ -1,0 +1,98 @@
+# =============================================================================
+# AP信頼性試験演習: DB接続枯渇の調査・復旧演習用 Docker Compose
+#
+# 注意:
+#   - 本ファイルに記載のパスワード・接続情報は「演習専用」です。
+#     本番環境では絶対に使用しないでください。
+#   - max_connections=20 は障害再現のための意図的に小さい値です。
+# =============================================================================
+
+name: reliability-lab
+
+services:
+  db-server:
+    build:
+      context: ./db
+    container_name: db-server
+    hostname: db-server
+    environment:
+      # 演習専用の認証情報(本番使用禁止)
+      POSTGRES_PASSWORD: "lab-admin-pass"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    networks:
+      labnet:
+        # IPを固定し、通信DROPスクリプトの対象特定を容易にする
+        ipv4_address: 172.30.0.10
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d appdb"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  ap-server-1:
+    build:
+      context: ./ap
+    container_name: ap-server-1
+    hostname: ap-server-1
+    environment:
+      AP_NAME: "ap-server-1"
+      ROLE: "active"                # 起動時から現用系
+      DB_HOST: "db-server"
+      DB_PORT: "5432"
+      DB_NAME: "appdb"
+      DB_USER: "appuser"
+      DB_PASSWORD: "lab-app-pass"   # 演習専用(本番使用禁止)
+      MAX_WORKERS: "12"             # 最大並行業務処理数
+      HEARTBEAT_FILE: "/shared/heartbeat-ap1"
+      HEARTBEAT_INTERVAL: "2"
+    networks:
+      labnet:
+        ipv4_address: 172.30.0.11
+    volumes:
+      - shared-state:/shared
+    depends_on:
+      db-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ap-server-2:
+    build:
+      context: ./ap
+    container_name: ap-server-2
+    hostname: ap-server-2
+    environment:
+      AP_NAME: "ap-server-2"
+      ROLE: "standby"               # heartbeat断で自動昇格
+      DB_HOST: "db-server"
+      DB_PORT: "5432"
+      DB_NAME: "appdb"
+      DB_USER: "appuser"
+      DB_PASSWORD: "lab-app-pass"   # 演習専用(本番使用禁止)
+      MAX_WORKERS: "12"
+      HEARTBEAT_FILE: "/shared/heartbeat-ap1"
+      HEARTBEAT_TIMEOUT: "10"       # heartbeatがこの秒数途絶えたら昇格
+      CHECK_INTERVAL: "2"
+    networks:
+      labnet:
+        ipv4_address: 172.30.0.12
+    volumes:
+      - shared-state:/shared
+    depends_on:
+      db-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  labnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  db-data:
+  shared-state:

@@ -1,0 +1,55 @@
+# =============================================================================
+# db-connection-exhaustion-lab .gitignore
+# 一時ファイル・ログ・認証情報はコミットしない
+# =============================================================================
+
+# ---- 認証情報(万一作業ディレクトリに置いてしまった場合の保険) ----
+*.pem
+*.key
+*.crt
+*.p12
+.netrc
+.env
+.env.*
+*token*
+*credential*
+!**/no-credentials-here.md
+.gcloud/
+application_default_credentials.json
+
+# ---- 演習実行時に生成される一時ファイル・状態ファイル ----
+lab-state/
+/tmp-state/
+*.state
+drop-method
+heartbeat-*
+
+# ---- ログ ----
+*.log
+logs/
+nohup.out
+
+# ---- Docker / ビルド生成物 ----
+*.tar
+*.tar.gz
+.docker/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---- エディタ・OS ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ---- 検証時の作業ファイル ----
+scratch/
+work/
+setup-files.sh

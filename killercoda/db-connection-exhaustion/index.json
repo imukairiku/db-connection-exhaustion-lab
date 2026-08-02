@@ -1,0 +1,39 @@
+{
+  "title": "AP信頼性試験: DB接続枯渇の調査・暫定復旧・恒久対策",
+  "description": "AP冗長切替後にDB接続枯渇で業務継続できない障害を調査し、pg_terminate_backendによる暫定復旧とTCP Keepaliveによる恒久対策を体験する30分演習",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "background": "background.sh",
+      "foreground": "foreground.sh"
+    },
+    "steps": [
+      {
+        "title": "Step 1: 状況確認とAP切替確認",
+        "text": "step1.md",
+        "verify": "verify-step1.sh"
+      },
+      {
+        "title": "Step 2: DB接続数調査と残留接続特定",
+        "text": "step2.md",
+        "verify": "verify-step2.sh"
+      },
+      {
+        "title": "Step 3: 残留接続の終了と業務復旧",
+        "text": "step3.md",
+        "verify": "verify-step3.sh"
+      },
+      {
+        "title": "Step 4: Keepalive設定と再試験",
+        "text": "step4.md",
+        "verify": "verify-step4.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    }
+  },
+  "backend": {
+    "imageid": "ubuntu"
+  }
+}
