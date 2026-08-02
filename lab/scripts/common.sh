@@ -40,7 +40,7 @@ trap on_error ERR
 
 # ---- Docker Compose ラッパ ----
 compose() {
-  docker compose --project-directory "${LAB_DIR}" "$@"
+  ( cd "${LAB_DIR}" && docker compose "$@" )
 }
 
 container_ip() {
