@@ -39,9 +39,21 @@ on_error() {
 trap on_error ERR
 
 # ---- Docker Compose ラッパ ----
+# Docker Compose のバージョン差を吸収
+# v2 (docker compose) と v1 (docker-compose) を自動判定
+if docker compose version >/dev/null 2>&1; then
+  DOCKER_COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  DOCKER_COMPOSE_CMD="docker-compose"
+else
+  echo "ERROR: docker compose も docker-compose も見つかりません" >&2
+  exit 1
+fi
+
 compose() {
-  ( cd "${LAB_DIR}" && docker compose "$@" )
+  ( cd "${LAB_DIR}" && ${DOCKER_COMPOSE_CMD} "$@" )
 }
+
 
 container_ip() {
   docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$1"
