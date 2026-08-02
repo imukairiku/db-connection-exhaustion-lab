@@ -3,7 +3,7 @@
 # DB接続状況の表示
 # =============================================================================
 set -Eeuo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/common.sh"
 
 echo "=========================================="
 echo " DB接続状況 (max_connections=$(psql_admin 'SHOW max_connections;'))"

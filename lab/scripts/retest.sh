@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 再試験(問7)
+#   idle_in_transaction_session_timeout 対策後に同一障害を再現し、
+#   残留接続が自動解放されて ap-server-2 の業務処理が回復することを
+#   時系列で確認する
 # =============================================================================
 set -Eeuo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/common.sh"
 
 SCRIPTS_DIR="${COMMON_SH_DIR}"
-RELEASE_TIMEOUT=180
+RELEASE_TIMEOUT=120
 INTERVAL=10
 
 log_info "=== 再試験を開始します ==="
 
-idle="$(psql_admin 'SHOW tcp_keepalives_idle;')"
-intv="$(psql_admin 'SHOW tcp_keepalives_interval;')"
-cnt="$(psql_admin 'SHOW tcp_keepalives_count;')"
-if [ "${idle}" != "20" ] || [ "${intv}" != "5" ] || [ "${cnt}" != "3" ]; then
-  log_error "Keepalive設定が未適用です (idle=${idle} interval=${intv} count=${cnt})"
+# 1. 恒久対策の事前チェック
+timeout_val="$(psql_admin 'SHOW idle_in_transaction_session_timeout;')"
+if [ "${timeout_val}" != "30s" ]; then
+  log_error "idle_in_transaction_session_timeout が未適用です (現在値: ${timeout_val})"
   log_error "先に ./apply-keepalive-setting.sh を実行してください"
   exit 1
 fi
-log_info "Keepalive設定を確認しました (idle=20 interval=5 count=3)"
+log_info "恒久対策設定を確認しました (idle_in_transaction_session_timeout = ${timeout_val})"
 
 rm -f "${RETEST_MARKER}"
 
@@ -31,8 +33,8 @@ wait_for_log_pattern "${AP2_CONTAINER}" "PROMOTED to ACTIVE" 40
 
 echo ""
 echo "========================================================"
-echo " 接続数の推移(Keepaliveによる自動解放の観察)"
-echo " 期待: 約35〜40秒で ap-server-1 の残留接続が 0 になる"
+echo " 接続数の推移(idle-in-transaction接続の自動解放の観察)"
+echo " 期待: 約30〜40秒で ap-server-1 の残留接続が 0 になる"
 echo "========================================================"
 elapsed=0
 released=1
@@ -56,8 +58,7 @@ echo "========================================================"
 
 if [ "${released}" -ne 0 ]; then
   log_error "${RELEASE_TIMEOUT}秒以内に残留接続が解放されませんでした"
-  log_error "Keepaliveの実効性は環境依存です。docs/environment-differences.md を参照し、"
-  log_error "Killercoda環境での実測確認を行ってください"
+  log_error "設定が正しく適用されているか確認してください"
   exit 1
 fi
 log_info "ap-server-1 由来の残留接続が自動解放されました"

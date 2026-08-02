@@ -3,7 +3,7 @@
 # 通常負荷の開始(冪等)
 # =============================================================================
 set -Eeuo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/common.sh"
 
 log_info "=== 通常負荷を開始します ==="
 

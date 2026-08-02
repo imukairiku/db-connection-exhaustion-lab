@@ -12,15 +12,13 @@ psql_q() {
 
 RETEST_MARKER="/tmp/lab-state/retest-done"
 
-idle="$(psql_q 'SHOW tcp_keepalives_idle;')"     || fail "DBへ接続できません"
-intv="$(psql_q 'SHOW tcp_keepalives_interval;')"
-cnt="$(psql_q 'SHOW tcp_keepalives_count;')"
+timeout_val="$(psql_q 'SHOW idle_in_transaction_session_timeout;')" || fail "DBへ接続できません"
 
-[ "${idle}" = "20" ] && [ "${intv}" = "5" ] && [ "${cnt}" = "3" ] \
-  || fail "Keepalive設定が未適用です (idle=${idle} interval=${intv} count=${cnt})。/root/apply-keepalive-setting.sh を実行してください"
+[ "${timeout_val}" = "30s" ] \
+  || fail "idle_in_transaction_session_timeout が適用されていません (現在値: ${timeout_val})。/root/lab/scripts/apply-keepalive-setting.sh を実行してください"
 
 [ -f "${RETEST_MARKER}" ] \
-  || fail "再試験が完了していません。/root/retest.sh を実行してください"
+  || fail "再試験が完了していません。/root/lab/scripts/retest.sh を実行してください"
 
 leftover="$(psql_q "SELECT count(*) FROM pg_stat_activity
                     WHERE backend_type='client backend'

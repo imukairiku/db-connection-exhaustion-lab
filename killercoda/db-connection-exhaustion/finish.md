@@ -10,18 +10,35 @@
    まで確認する必要がある。
 2. **pg_stat_activity による調査**
    `application_name` を業務側で設定しておくことで、接続元の特定が容易になる。
+   接続の `state` 列(active / idle / idle in transaction)から状況を読み解ける。
 3. **pg_terminate_backend による暫定復旧**
    必ず SELECT で対象を確認してから、同じ WHERE 句で終了する。
-4. **TCP Keepalive による恒久対策**
-   サイレント障害(FIN/RSTが届かない切断)をサーバ側で検知・自動解放できる。
+4. **`idle_in_transaction_session_timeout` による恒久対策**
+   トランザクション中に一定時間何もない接続をPostgreSQL側から強制切断できる。
+   カーネル依存がなく、環境を問わず確実に動作する。
+
+## 対策の選択について
+
+今回の残留接続は **`idle in transaction`** 状態でした。これに対する対策の選択肢:
+
+| 対策 | 有効性 | 特徴 |
+|---|---|---|
+| max_connections を増やす | ❌ | 根本対策にならない |
+| TCP Keepalive | △ | サイレント切断には有効だがOS/カーネル依存 |
+| **idle_in_transaction_session_timeout** | ◎ | 今回の状態に最適・環境非依存 |
+| idle_session_timeout | ○ | idle接続(トランザクション外)には有効 |
+| 接続プーラー(PgBouncer 等) | ◎ | 実運用では併用が王道 |
+| AP側のタイムアウト設計 | ○ | 多層防御の一部として重要 |
+
+**残留接続の `state` を正しく観察することが対策選択の第一歩**です。
 
 ## 実運用への注意
 
-- **max_connections を増やすだけでは根本対策にならない。** 残留接続を検知・解放する
+- **max_connections を増やすだけでは根本対策にならない**。残留接続を検知・解放する
   仕組みがなければ、上限をいくら上げてもいずれ枯渇する。
-- **本演習の Keepalive 値(idle=20秒)は演習専用。** 本番では誤検知(一時的なNW遅延での
-  切断)や機器負荷を考慮し、要件に応じた値を設計すること。
-- 実運用では多層防御を検討する: 接続プーラー(PgBouncer等)、`idle_session_timeout`、
+- **本演習の `30s` は演習専用**。本番では業務トランザクションの最長実行時間を
+  踏まえて十分に長い値を設計すること。短すぎると正常な処理まで切断される。
+- 実運用では多層防御を検討する: 接続プーラー(PgBouncer等)、
   AP側の接続タイムアウト・リトライ設計、監視(接続数のしきい値アラート)。
 - 本演習のパスワード・設定値は演習専用であり、本番流用は不可。
 
@@ -29,6 +46,6 @@
 
 セッションが残っている間は、以下で正常状態へ戻して自由に再実験できます。
 
-`/root/reset-environment.sh` : 正常状態へリセット
-`/root/lab/scripts/inject-failure.sh` : 障害の再投入
-`/root/show-connections.sh` : 接続状況の表示
+- `/root/lab/scripts/reset-environment.sh` : 正常状態へリセット
+- `/root/lab/scripts/inject-failure.sh` : 障害の再投入
+- `/root/lab/scripts/show-connections.sh` : 接続状況の表示

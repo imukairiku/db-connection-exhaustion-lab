@@ -3,7 +3,7 @@
 # 演習開始状態の自動構築
 # =============================================================================
 set -Eeuo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/common.sh"
 
 SCRIPTS_DIR="${COMMON_SH_DIR}"
 NEED_LEFTOVER=8

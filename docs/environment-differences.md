@@ -33,3 +33,22 @@
   (ホームディレクトリ以外は非永続)。再開時は `setup.sh` からやり直す。
 - Cloud Shell上のiptables検証は「スクリプトのロジック確認」まで。
   実効性の担保はKillercodaで行う。
+
+
+## 実測結果と設計変更(2026-08)
+
+Cloud Shell / Killercoda の両方で TCP Keepalive の setsockopt が
+効かないことが実測で判明した:
+
+- `postgresql.auto.conf` には `tcp_keepalives_idle = '20'` が書かれる
+- しかし `SHOW tcp_keepalives_idle` は常に `0` を返す
+- setsockopt(TCP_KEEPIDLE) がコンテナ環境では有効にならないと推測される
+
+このため、恒久対策を **`idle_in_transaction_session_timeout`** へ変更した:
+
+- カーネル依存がない(PostgreSQL 内部のタイマーで動作)
+- 今回の残留接続の状態(`idle in transaction`)に対して最適
+- Cloud Shell / Killercoda ともに確実に動作
+- 教材上の説明も自然(残留接続の `state` を観察してから対策を選ぶ流れ)
+
+`apply-keepalive-setting.sh` のスクリプト名は歴史的経緯でそのまま残している。

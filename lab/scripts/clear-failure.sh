@@ -3,7 +3,7 @@
 # 障害解除(冪等)
 # =============================================================================
 set -Eeuo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/common.sh"
 
 log_info "=== 障害解除を開始します ==="
 

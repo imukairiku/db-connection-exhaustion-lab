@@ -3,7 +3,7 @@
 # 演習環境セットアップ
 # =============================================================================
 set -Eeuo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/common.sh"
 
 log_info "=== 演習環境セットアップ開始 ==="
 
