@@ -1,0 +1,54 @@
+{
+  "title": "AP切替後のDB接続枯渇：7 Step調査・復旧",
+  "description": "AP信頼性試験の障害を実環境で調査し、安全に復旧する7ステップ演習",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "background": "intro/background.sh",
+      "foreground": "intro/foreground.sh"
+    },
+    "steps": [
+      {
+        "title": "1. 切替状況",
+        "text": "step1.md",
+        "verify": "verify/step1.sh"
+      },
+      {
+        "title": "2. 業務影響",
+        "text": "step2.md",
+        "verify": "verify/step2.sh"
+      },
+      {
+        "title": "3. DB側の状況",
+        "text": "step3.md",
+        "verify": "verify/step3.sh"
+      },
+      {
+        "title": "4. 接続の識別",
+        "text": "step4.md",
+        "verify": "verify/step4.sh"
+      },
+      {
+        "title": "5. 暫定復旧",
+        "text": "step5.md",
+        "verify": "verify/step5.sh"
+      },
+      {
+        "title": "6. 恒久対策",
+        "text": "step6.md",
+        "verify": "verify/step6.sh"
+      },
+      {
+        "title": "7. 再試験",
+        "text": "step7.md",
+        "verify": "verify/step7.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    }
+  },
+  "backend": {
+    "imageid": "ubuntu-4GB"
+  }
+}
