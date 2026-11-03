@@ -1,4 +1,4 @@
-Step 1で見つけた接続エラーを、DB側の情報と照合します。ここでは**調査だけ**を行い、接続の終了や設定変更はしません。
+Step 1の答え合わせで確認した `DB connection failed:` を手掛かりに、「なぜDBへ接続できないのか」をPostgreSQL側で調べます。ここでは**調査だけ**を行い、接続の終了や設定変更はしません。
 
 **学習目標：PostgreSQLの接続上限と接続の内訳を調べ、気になる接続を特定する。**
 
@@ -15,7 +15,9 @@ docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SHOW superus
 - `superuser_reserved_connections`：管理者用に確保する接続枠。通常の業務ユーザーはこの枠を使えません。
 - `postgres`：この演習で調査に使う管理用ユーザーです。`-c`でSQLを実行し、結果表示後にターミナルへ戻ります。
 
-現在のクライアント接続数も調べます。
+## 2. 現在の接続数を見る
+
+上限と比べるため、現在のクライアント接続数を調べます。
 
 ```bash
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT count(*) AS client_connections FROM pg_stat_activity WHERE backend_type = 'client backend';"
@@ -23,7 +25,7 @@ docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT count
 
 `pg_stat_activity`は接続や処理の状態を調べるビューです。ここではDB内部のプロセスを除き、クライアント接続だけを数えています。調査用psql自身の接続も含まれるため、一般ユーザーの利用可能枠と単純には一致しません。
 
-## 2. 接続元と状態を分類する
+## 3. 接続元と状態を分類する
 
 ```bash
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT application_name, client_addr, state, count(*) AS connections FROM pg_stat_activity WHERE backend_type = 'client backend' GROUP BY application_name, client_addr, state ORDER BY application_name, state;"
@@ -42,6 +44,7 @@ docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT appli
 
 - エラーの内容と、上限・予約枠・現在の接続数はどう関係していますか。
 - Step 1で確認したAPの状態と、接続元別の件数に食い違いはありませんか。
+- 停止したAPに対応する接続がある場合、どの列と状態が根拠になりますか。なぜDB側に接続が残るのか、仮説を立ててください。
 
 <details>
 <summary>ヒント1：接続元を一つずつ照合する</summary>
@@ -53,7 +56,7 @@ docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT appli
 <details>
 <summary>ヒント2：停止と切断通知は別の出来事</summary>
 
-通信断を伴ってAPが停止すると、DBへ正常な切断通知が届かず、DB側に接続が残る場合があります。この演習では、停止したAP1の接続が残り、AP2が使える接続枠を圧迫していないかを確認してください。
+APが処理を止めたことと、DBが接続の終了を認識したことは同じではありません。切断通知が届かなかった可能性を考え、自分の出力の接続元・状態・件数がこの仮説と合うか確認してください。待機状態という理由だけで、正常なAPや管理用の接続まで異常と判断しないようにしましょう。
 
 </details>
 
