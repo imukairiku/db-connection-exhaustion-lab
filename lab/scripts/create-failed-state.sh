@@ -23,7 +23,7 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
 
   "${SCRIPTS_DIR}/inject-failure.sh"
 
-  wait_for_log_pattern "${AP2_CONTAINER}" "PROMOTED to ACTIVE" 40
+  wait_for_ap_active "${AP2_CONTAINER}" 40
 
   sleep 5
   leftover="$(count_conns "${AP1_CONTAINER}")"

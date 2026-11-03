@@ -31,7 +31,7 @@ ok="$(psql_q "SELECT count(*) FROM job_history
                 AND status='success'
                 AND finished_at > now() - interval '3 minutes';")"
 if [ "${ok}" -eq 0 ]; then
-  docker logs --since 3m ap-server-2 2>&1 | grep -q "job SUCCESS" \
+  docker logs --since 3m ap-server-2 2>&1 | grep -e "job SUCCESS" >/dev/null \
     || fail "ap-server-2 の業務成功を確認できません"
 fi
 

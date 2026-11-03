@@ -29,7 +29,7 @@ rm -f "${RETEST_MARKER}"
 
 "${SCRIPTS_DIR}/inject-failure.sh"
 
-wait_for_log_pattern "${AP2_CONTAINER}" "PROMOTED to ACTIVE" 40
+wait_for_ap_active "${AP2_CONTAINER}" 40
 
 echo ""
 echo "========================================================"

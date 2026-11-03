@@ -121,16 +121,52 @@ wait_for_conns_at_least() {
 }
 
 wait_for_log_pattern() {
-  local name="$1" pattern="$2" timeout="${3:-60}" waited=0
+  local name="$1" pattern="$2" timeout="${3:-60}" snapshot deadline
+  snapshot="$(mktemp "${LAB_STATE_DIR}/log-snapshot.XXXXXX")" || return 1
+  deadline=$((SECONDS + timeout))
   log_info "${name} のログに '${pattern}' が出るまで待機中..."
-  while [ "${waited}" -lt "${timeout}" ]; do
-    if docker logs --tail 100 "${name}" 2>&1 | grep -q "${pattern}"; then
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    # Consume a finite snapshot; grep cannot close Docker's output pipe early.
+    if docker logs "${name}" >"${snapshot}" 2>&1 && grep -e "${pattern}" "${snapshot}" >/dev/null; then
+      rm -f "${snapshot}"
       log_info "${name}: パターン検出"
       return 0
     fi
-    sleep 3; waited=$((waited + 3))
+    sleep 3
   done
+  rm -f "${snapshot}"
   log_error "${name} のログに '${pattern}' が ${timeout}秒以内に出力されませんでした"
+  return 1
+}
+
+wait_for_ap_active() {
+  local name="$1" timeout="${2:-60}" deadline
+  deadline=$((SECONDS + timeout))
+  log_info "${name} の現在プロセスがACTIVEになるまで待機中..."
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    if [ "$(container_state "${name}")" = running ] &&
+       docker exec -i "${name}" python3 - "${name}" <<'PY'
+import json,os,pathlib,sys
+try:
+    state=json.loads(pathlib.Path('/tmp/ap-role.json').read_text(encoding='utf-8'))
+    pid=int(state['pid'])
+    if pid <= 0:
+        raise ValueError('invalid PID')
+    fields=pathlib.Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split()
+    valid=(state['role']=='ACTIVE' and state['ap_name']==sys.argv[1]
+           and fields[0] not in ('Z','X') and fields[19]==state['process_start_ticks'])
+    os.kill(pid,0)
+except (OSError,ValueError,KeyError,TypeError,IndexError):
+    valid=False
+raise SystemExit(0 if valid else 1)
+PY
+    then
+      log_info "${name}: 現在プロセスのACTIVE状態を確認しました"
+      return 0
+    fi
+    sleep 3
+  done
+  log_error "${name} が ${timeout}秒以内にACTIVEになりませんでした(state=$(container_state "${name}"))"
   return 1
 }
 
