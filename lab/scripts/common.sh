@@ -30,6 +30,12 @@ log_info()  { printf '\033[32m[INFO]\033[0m  %s\n' "$*"; }
 log_warn()  { printf '\033[33m[WARN]\033[0m  %s\n' "$*"; }
 log_error() { printf '\033[31m[ERROR]\033[0m %s\n' "$*" >&2; }
 
+# Machine-readable startup progress; inert during learner operations.
+startup_stage() {
+  [ "${LAB_STARTUP_PROGRESS:-0}" = 1 ] || return 0
+  printf '__LAB_STAGE__ %s %s\n' "$1" "$2"
+}
+
 on_error() {
   local exit_code=$?
   log_error "スクリプトが失敗しました: ${BASH_SOURCE[1]}:${BASH_LINENO[0]} (exit=${exit_code})"

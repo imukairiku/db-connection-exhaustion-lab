@@ -17,10 +17,13 @@ attempt=1
 while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
   log_info "--- 障害投入 試行 ${attempt}/${MAX_ATTEMPTS} ---"
 
+  startup_stage begin normal
   "${SCRIPTS_DIR}/start-normal-load.sh"
 
   wait_for_conns_at_least "${AP1_CONTAINER}" "${NEED_LEFTOVER}" 90
+  startup_stage end normal
 
+  startup_stage begin scenario
   "${SCRIPTS_DIR}/inject-failure.sh"
 
   wait_for_ap_active "${AP2_CONTAINER}" 40
@@ -32,6 +35,7 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
     break
   fi
   log_warn "残留接続が ${NEED_LEFTOVER} 本未満のためリトライします"
+  startup_stage retry scenario
   attempt=$((attempt + 1))
   if [ "${attempt}" -gt "${MAX_ATTEMPTS}" ]; then
     log_error "障害状態の構築に失敗しました(残留接続不足)"
@@ -40,9 +44,18 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
 done
 
 wait_for_log_pattern "${AP2_CONTAINER}" "DB connection failed" 60
+startup_stage end scenario
 
+startup_stage begin ready
+[ "$(container_state "${DB_CONTAINER}")" = running ]
+[ "$(docker inspect -f '{{.State.Health.Status}}' "${DB_CONTAINER}")" = healthy ]
+[ "$(container_state "${AP1_CONTAINER}")" = paused ]
+[ "$(container_state "${AP2_CONTAINER}")" = running ]
+wait_for_ap_active "${AP2_CONTAINER}" 5
+[ "$(count_conns "${AP1_CONTAINER}")" -ge "${NEED_LEFTOVER}" ]
 log_info "=== 演習開始状態の構築完了 ==="
 log_info "  ap-server-1 : $(container_state "${AP1_CONTAINER}")(通信断+pause)"
 log_info "  ap-server-2 : $(container_state "${AP2_CONTAINER}")(昇格済み・接続エラー発生中)"
 log_info "  残留接続    : $(count_conns "${AP1_CONTAINER}") 本"
 log_info "  総接続数    : $(count_client_conns) 本(max_connections=20)"
+startup_stage end ready
