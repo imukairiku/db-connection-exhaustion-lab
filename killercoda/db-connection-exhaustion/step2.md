@@ -13,7 +13,7 @@ Step 1では、AP2への切替と業務の成否を分けて確認しました�
 <details>
 <summary>ヒント1：APとDBの情報を照合する</summary>
 
-APのエラーログと、DBの接続状況を比較しましょう。`docker logs` でAPの記録を探し、`docker exec` と `psql` でDBへ問い合わせられます。`SHOW` は設定確認、`SELECT` はデータの参照に使います。
+APのエラーログとDB側の情報を照合し、どの種類の情報が根拠になるか考えてください。
 
 </details>
 
@@ -25,20 +25,20 @@ PostgreSQLの `pg_stat_activity` は接続や処理の状態を調べるビュ�
 </details>
 
 <details>
-<summary>模範解答：自分で考えてから開く</summary>
+<summary>模範解答：実行コマンド・SQL（自分で考えてから開く）</summary>
 
-以下のコマンドを上から順に実行し、自分の出力と説明を照合してください。コードの実行ボタンは自分で押します。見つからないログや未観測の状態を、確認済みとして扱わないでください。
+以下を上から順に実行します。開閉だけでは実行されません。出力を確認し、次の操作が安全か判断してから各コードの実行ボタンを押してください。「判断と技術的な解説」は別に開くまで表示されません。
 
-### 1. エラーログを確認する
+### 1. APのエラーを再確認する
 
 ```bash
 cd /root/lab
 docker logs ap-server-2 2>&1 | grep -F 'DB connection failed' | tail -n 5
 ```{{exec}}
 
-`detail=` の説明を読み、DBサーバの停止・通信障害・接続枠不足など、どの可能性を示しているか考えてください。「接続失敗」という言葉だけで原因を決めつけないようにしましょう。
+`grep -F` は指定文字列を含む行を探し、`tail -n 5` は最後の5行を表示します。`detail=` の内容を記録してください。
 
-### 2. PostgreSQLの接続上限を確認する
+### 2. 接続上限と予約枠を確認する
 
 ```bash
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SHOW max_connections;"
@@ -48,36 +48,37 @@ docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SHOW max_con
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SHOW superuser_reserved_connections;"
 ```{{exec}}
 
-- `max_connections`：DB全体の接続上限。
-- `superuser_reserved_connections`：管理者用に確保する接続枠。通常の業務ユーザーはこの枠を使えません。
-- `postgres`：この演習で調査に使う管理用ユーザーです。`-c`でSQLを実行し、結果表示後にターミナルへ戻ります。
+`max_connections` はDB全体の接続上限、`superuser_reserved_connections` はスーパーユーザー向けの予約枠です。`postgres` はこの演習の調査用管理ユーザーです。`-X` はpsqlの起動設定ファイルを読み込まず、`-P pager=off` はページ送りを無効にし、`-c` はSQL実行後に終了します。
 
-### 3. 現在の接続数を見る
-
-上限と比べるため、現在のクライアント接続数を調べます。
+### 3. 現在のクライアント接続数を確認する
 
 ```bash
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT count(*) AS client_connections FROM pg_stat_activity WHERE backend_type = 'client backend';"
 ```{{exec}}
 
-`pg_stat_activity`は接続や処理の状態を調べるビューです。ここではDB内部のプロセスを除き、クライアント接続だけを数えています。調査用psql自身の接続も含まれるため、一般ユーザーの利用可能枠と単純には一致しません。
+`pg_stat_activity` は接続や処理の状態を調べるビューです。`backend_type` でDB内部のプロセスを除きます。調査用psql自身も数に含まれ、観測時点で件数は変動します。
 
-### 4. 接続元と状態を分類する
+### 4. 接続元・状態ごとの内訳を確認する
 
 ```bash
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT application_name, client_addr, state, count(*) AS connections FROM pg_stat_activity WHERE backend_type = 'client backend' GROUP BY application_name, client_addr, state ORDER BY application_name, state;"
 ```{{exec}}
 
-| 列 | 読み方 |
+| 列 | 確認する情報 |
 |---|---|
-| `application_name` | 接続元アプリが設定した名前。この演習ではAPを識別する手掛かり |
-| `client_addr` | 接続元IPアドレス。DB内のローカル接続では空欄になることもある |
-| `state` | 接続が現在どのような状態か |
-| `connections` | 同じ接続元・状態に分類された件数（`count(*)`） |
+| `application_name` | アプリが設定した接続名 |
+| `client_addr` | 接続元IP。ローカルソケット接続では空欄になる |
+| `state` | 接続や処理の現在の状態 |
+| `connections` | 同じ接続元・状態に分類された件数 |
 
-`active`はSQL実行中、`idle`はトランザクション外で次の要求を待つ状態です。`idle in transaction`は、トランザクション（まとめて確定・取り消しを行う処理単位）を開いたまま次の要求を待つ状態です。待機状態だけで異常と決めず、APの稼働状態と比べてください。
+`GROUP BY` で分類し、`count(*)` で件数を集計しています。特定の接続元を先に絞らず、APの稼働状態・エラーと内訳を照合してください。このStepでは接続終了や設定変更は行いません。
 
-### 判断と技術的な解説
+</details>
+
+<details>
+<summary>判断と技術的な解説：結果を考えてから開く</summary>
+
+`active`はSQL実行中、`idle`はトランザクション外で要求を待つ状態、`idle in transaction`はトランザクションを開いたまま次の要求を待つ状態です。状態名だけでは異常と決めず、接続元とAPの状態を照合します。
 
 以下は本演習の障害状態についての模範解答です。接続数や状態は観測時点で変わるため、自分の出力と照合してください。ログやSQLで確認できない内容を、観測済みの事実として扱わないでください。
 
@@ -115,8 +116,6 @@ DBへ正常な切断通知が届かず、DB側の切断検知やタイムアウ�
 
 「DB接続枯渇」は障害として現れている現象、「AP1由来の残留接続」は枠を圧迫する原因、「通信遮断とAP1の一時停止」は今回その接続が残った背景として区別してください。
 
-
-
 </details>
 
 ## CHECK前の確認
@@ -125,4 +124,4 @@ DBへ正常な切断通知が届かず、DB側の切断検知やタイムアウ�
 - 3問に、ログとSQLの出力を根拠として答えられる。
 - 接続終了や設定変更は行っていない。
 
-CHECKは環境の状態を判定し、考察内容は採点しません。既に復旧済みでも通過できる既存仕様のため、成功だけを調査結果の代わりにしないでください。確認できたらStep 3へ進み、影響範囲を限定した復旧方針を考えます。
+CHECKはDB接続の内訳・件数を判定し、既に復旧済みの場合は最近の業務成功も確認します。考察内容は採点しません。既に復旧済みでも通過できる既存仕様のため、成功だけを調査結果の代わりにしないでください。確認できたらStep 3へ進み、影響範囲を限定した復旧方針を考えます。

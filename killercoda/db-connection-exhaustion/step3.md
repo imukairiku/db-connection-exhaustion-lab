@@ -25,51 +25,34 @@ Step 2で特定した問題を解消し、業務を回復させます。正常�
 </details>
 
 <details>
-<summary>模範解答：自分で考えてから開く</summary>
+<summary>模範解答：実行コマンド・SQL（自分で考えてから開く）</summary>
 
-以下のコマンドを上から順に実行し、自分の出力と説明を照合してください。コードの実行ボタンは自分で押します。見つからないログや未観測の状態を、確認済みとして扱わないでください。
+以下を上から順に実行します。開閉だけでは実行されません。出力を確認し、次の操作が安全か判断してから各コードの実行ボタンを押してください。「判断と技術的な解説」は別に開くまで表示されません。
 
-### 1. 復旧方法を判断する
-
-| 方法 | 影響の違い |
-|---|---|
-| DB全体を再起動する | 正常な接続や処理中のトランザクションにも影響する |
-| 特定の接続だけを終了する | 対象を正しく選べば、他の接続への影響を抑えられる |
-
-どちらの方法なら、正常なAP2の接続や処理を残せるでしょうか。操作の影響範囲を説明してから進んでください。本演習ではDB全体の再起動は行いません。
-
-### 2. SELECTで終了対象を確認する
-
-まず、Step 2で特定したAP1由来の接続を一覧にします。ここではまだ接続を終了しません。
+### 1. 終了対象をSELECTで確認する
 
 ```bash
 cd /root/lab
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT pid, application_name, client_addr, state, backend_start FROM pg_stat_activity WHERE backend_type = 'client backend' AND application_name = 'ap-server-1' AND pid <> pg_backend_pid() ORDER BY pid;"
 ```{{exec}}
 
-`pid`は接続を担当するDBプロセスの識別番号、`backend_start`は接続開始時刻です。`application_name`・`client_addr`・`state`をStep 2の結果と照合し、AP1の接続だけであることを確認します。
+`pid` は接続を担当するDBプロセスの識別番号、`backend_start` は接続開始時刻です。`application_name`・`client_addr`・`state` をStep 2の調査結果と照合し、AP1の対象だけが表示されることを確認します。
 
-`WHERE`句は対象を選ぶ条件です。
+`WHERE` はクライアント接続・AP1の名前・管理接続自身の除外を条件にしています。想定外の行がある場合は、次の終了操作へ進まないでください。
 
-- `backend_type = 'client backend'`：DB内部の処理ではなく、クライアント接続を選ぶ。
-- `application_name = 'ap-server-1'`：AP1が名乗る接続だけを選ぶ。
-- `pid <> pg_backend_pid()`：SQLを実行している管理接続自身を除く（`<>`は「等しくない」）。
+### 2. 確認した条件で対象を終了する
 
-AP2や管理用接続が含まれているなど、想定と違う場合は次の操作へ進まないでください。
-
-### 3. 確認した条件で残留接続を終了する
-
-固定PIDは使わず、同じ条件で現在の接続を選び直して終了を要求します。AP1が引き続き停止していることと、直前のSELECTの対象が正しいことを確認して実行してください。
+AP1が引き続き停止していることを確認し、固定PIDではなく同じ条件で現在の対象を選び直します。**先ほどのSELECTの確認が済んだ場合だけ**、次のブロックを自分で実行してください。
 
 ```bash
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT pid, pg_terminate_backend(pid) AS terminated FROM pg_stat_activity WHERE backend_type = 'client backend' AND application_name = 'ap-server-1' AND pid <> pg_backend_pid();"
 ```{{exec}}
 
-`pg_terminate_backend(pid)`は指定したDBプロセスへ接続終了を要求します。対象接続の未確定の処理は取り消されます。`terminated = t`は終了要求の送信成功を示しますが、それだけで接続の消滅や業務復旧を確認したことにはなりません。
+`pg_terminate_backend` は指定したDBプロセスに終了を要求します。未確定の処理は取り消されます。返された `terminated` を記録し、続いて接続と業務の状態を確認します。
 
-### 4. 接続数と業務結果を確かめる
+### 3. 接続数と業務ログを確認する
 
-次を実行する前に、復旧操作を行った時刻を控えておきましょう。
+終了操作の時刻を控え、次を実行します。
 
 ```bash
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT count(*) AS ap1_connections FROM pg_stat_activity WHERE backend_type = 'client backend' AND application_name = 'ap-server-1';"
@@ -77,19 +60,20 @@ docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT count
 docker logs --since 1m ap-server-2 2>&1 | tail -n 20
 ```{{exec}}
 
-AP1接続が0本になったか、接続一覧にAP2が見えるか、AP2のログに復旧操作後の新しい `job SUCCESS` が出るかを確認します。AP2は要求ごとに接続を作成・終了するため、本数が一定である必要はありません。
+AP1接続数が0本であること、接続一覧にAP2の接続が見えること、操作後の新しい業務ログを確認します。AP2は要求ごとに接続を作成・終了するので、本数が一定である必要はありません。
 
-再試行と業務処理に時間がかかります。すぐに成功が見えなければ10〜30秒ほど待ち、この確認と次の履歴確認をもう一度実行してください。成功が確認できないまま完了とは判断しません。
-
-DBに記録された直近の業務成功も確認します。
+### 4. DBに記録された業務成功を確認する
 
 ```bash
 docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT count(*) AS recent_ap2_success FROM job_history WHERE ap_name = 'ap-server-2' AND status = 'success' AND finished_at > now() - interval '2 minutes';"
 ```{{exec}}
 
-`recent_ap2_success`が1件以上であることを確認します。ただし、この集計は操作前の成功を含む場合があるため、操作後の日時・要求IDの `job SUCCESS` と併せて判断してください。接続一覧はその時点の状態であり、それだけで「正常接続を一度も切っていない」ことまでは証明できません。実行したWHERE句と操作前後の出力も照合します。
+直近のAP2成功件数が1件以上で、新しい `job SUCCESS:` のログがあることを確認します。操作前の履歴も含み得るため、操作後の時刻・要求IDのログと照合してください。すぐに新しい成功が見えなければ10〜30秒ほど待ち、手順3・4を再実行します。成功を確認できないまま完了と判断しないでください。
 
-### 判断と技術的な解説
+</details>
+
+<details>
+<summary>判断と技術的な解説：結果を考えてから開く</summary>
 
 自分のSQL出力とログを照合してください。以下の値は確認すべき条件であり、あなたの環境で観測済みの結果を示すものではありません。
 
@@ -130,8 +114,6 @@ AP2の接続はAP名の条件に合わず、対象から除外されます。管
 ### まとめ
 
 AP1の残留接続だけを終了して影響範囲を限定し、AP1接続0本とAP2の新しい業務成功を根拠に復旧を判断しました。ただし、同じ原因での再発を防ぐ仕組みはまだ導入していません。したがって今回の対応は**暫定復旧**です。
-
-
 
 </details>
 
