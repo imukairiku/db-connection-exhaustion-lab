@@ -130,6 +130,8 @@ docker exec db-server psql -X -P pager=off -U postgres -d appdb -c "SELECT count
 
 </details>
 
+## 演習をやり直す
+
 <details>
 <summary>操作を間違えた・最初からやり直したい場合</summary>
 

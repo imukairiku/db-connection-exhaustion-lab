@@ -3,6 +3,29 @@
 # 演習開始状態の自動構築
 # =============================================================================
 set -Eeuo pipefail
+
+# Learner invocations get a concise display. The startup supervisor already
+# captures detailed logs and consumes startup_stage messages, so keep its path.
+if [ "${LAB_STARTUP_PROGRESS:-0}" != 1 ] && [ "${LAB_REBUILD_INTERNAL:-0}" != 1 ]; then
+  diagnostic_log=/var/log/lab-setup.log
+  if ! exec {diagnostic_fd}>>"${diagnostic_log}"; then
+    printf '[ERROR] 診断ログを保存できません: %s\n' "${diagnostic_log}" >&2
+    exit 1
+  fi
+  printf '\n=== Exercise rebuild: %s ===\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >&"${diagnostic_fd}"
+  printf '[INFO] 演習環境を再構築しています...\n'
+  # FD 3 carries only the explicitly selected learner progress message.
+  if LAB_REBUILD_INTERNAL=1 bash "${BASH_SOURCE[0]}" "$@" 3>&1 >&"${diagnostic_fd}" 2>&1; then
+    printf '[OK]   演習環境の準備が完了しました。\n\nStep 1から調査を開始してください。\n'
+  else
+    rebuild_rc=$?
+    printf '[ERROR] 演習環境の準備に失敗しました (終了コード: %s)。\n' "${rebuild_rc}" >&2
+    printf '診断ログ: %s\n' "${diagnostic_log}" >&2
+    exit "${rebuild_rc}"
+  fi
+  exit 0
+fi
+
 source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/common.sh"
 
 SCRIPTS_DIR="${COMMON_SH_DIR}"
@@ -86,6 +109,9 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
   startup_stage end normal
 
   startup_stage begin scenario
+  if [ "${LAB_REBUILD_INTERNAL:-0}" = 1 ] && [ "${attempt}" -eq 1 ]; then
+    printf '[INFO] 障害シナリオを準備しています...\n' >&3
+  fi
   fault_log_since="$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
   "${SCRIPTS_DIR}/inject-failure.sh"
 

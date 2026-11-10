@@ -113,6 +113,8 @@ Step 2で記録した `state` と、タイムアウトが対象にする待機�
 
 </details>
 
+## 演習をやり直す
+
 <details>
 <summary>操作を間違えた・最初からやり直したい場合</summary>
 

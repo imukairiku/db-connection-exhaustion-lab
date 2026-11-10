@@ -114,6 +114,8 @@ docker logs --tail 30 ap-server-2
 
 </details>
 
+## 演習をやり直す
+
 <details>
 <summary>操作を間違えた・最初からやり直したい場合</summary>
 
