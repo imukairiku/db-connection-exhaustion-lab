@@ -1,6 +1,6 @@
 {
-  "title": "AP信頼性試験: DB接続枯渇の調査・暫定復旧・恒久対策",
-  "description": "AP冗長切替後にDB接続枯渇で業務継続できない障害を調査し、pg_terminate_backendによる暫定復旧とTCP Keepaliveによる恒久対策を体験する30分演習",
+  "title": "Techbase_202611月｜AP切替後の障害調査・復旧演習",
+  "description": "APサーバの切替後、業務が正常に継続できない事象が発生しました。システムの状態やログを調査し、原因の特定から復旧、再発防止策の検討まで取り組む演習です。",
   "details": {
     "intro": {
       "text": "intro.md",
